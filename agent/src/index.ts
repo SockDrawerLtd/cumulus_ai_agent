@@ -1,11 +1,13 @@
-import { PostgresDatabaseAdapter } from "@ai16z/adapter-postgres";
+import { MongoClient } from 'mongodb';
+import { MongoDBDatabaseAdapter } from "@ai16z/adapter-mongodb";
+// import { PostgresDatabaseAdapter } from "@ai16z/adapter-postgres";
 import { SqliteDatabaseAdapter } from "@ai16z/adapter-sqlite";
 import { AutoClientInterface } from "@ai16z/client-auto";
 import { DiscordClientInterface } from "@ai16z/client-discord";
 import { FarcasterAgentClient } from "@ai16z/client-farcaster";
-import { LensAgentClient } from "@ai16z/client-lens";
+// import { LensAgentClient } from "@ai16z/client-lens";
 import { SlackClientInterface } from "@ai16z/client-slack";
-import { TelegramClientInterface } from "@ai16z/client-telegram";
+// import { TelegramClientInterface } from "@ai16z/client-telegram";
 import { TwitterClientInterface } from "@ai16z/client-twitter";
 import {
     AgentRuntime,
@@ -43,13 +45,13 @@ import { confluxPlugin } from "@ai16z/plugin-conflux";
 import { evmPlugin } from "@ai16z/plugin-evm";
 import { storyPlugin } from "@ai16z/plugin-story";
 import { flowPlugin } from "@ai16z/plugin-flow";
-import { imageGenerationPlugin } from "@ai16z/plugin-image-generation";
+// import { imageGenerationPlugin } from "@ai16z/plugin-image-generation";
 import { multiversxPlugin } from "@ai16z/plugin-multiversx";
 import { nearPlugin } from "@ai16z/plugin-near";
-import { nftGenerationPlugin } from "@ai16z/plugin-nft-generation";
+// import { nftGenerationPlugin } from "@ai16z/plugin-nft-generation";
 import { createNodePlugin } from "@ai16z/plugin-node";
-import { solanaPlugin } from "@ai16z/plugin-solana";
-import { suiPlugin } from "@ai16z/plugin-sui";
+// import { solanaPlugin } from "@ai16z/plugin-solana";
+// import { suiPlugin } from "@ai16z/plugin-sui";
 import { TEEMode, teePlugin } from "@ai16z/plugin-tee";
 import { tonPlugin } from "@ai16z/plugin-ton";
 import { zksyncEraPlugin } from "@ai16z/plugin-zksync-era";
@@ -307,34 +309,63 @@ export function getTokenForProvider(
     }
 }
 
-function initializeDatabase(dataDir: string) {
-    if (process.env.POSTGRES_URL) {
-        elizaLogger.info("Initializing PostgreSQL connection...");
-        const db = new PostgresDatabaseAdapter({
-            connectionString: process.env.POSTGRES_URL,
-            parseInputs: true,
-        });
+ function initializeDatabase(dataDir: string) {
+     if (process.env.MONGODB_CONNECTION_STRING) {
+         elizaLogger.log("Initializing database on MongoDB Atlas");
+         const client = new MongoClient(process.env.MONGODB_CONNECTION_STRING, {
+             maxPoolSize: 100,
+             minPoolSize: 5,
+             maxIdleTimeMS: 60000,
+             connectTimeoutMS: 10000,
+             serverSelectionTimeoutMS: 5000,
+             socketTimeoutMS: 45000,
+             compressors: ['zlib'],
+             retryWrites: true,
+             retryReads: true
+         });
 
-        // Test the connection
-        db.init()
-            .then(() => {
-                elizaLogger.success(
-                    "Successfully connected to PostgreSQL database"
-                );
-            })
-            .catch((error) => {
-                elizaLogger.error("Failed to connect to PostgreSQL:", error);
-            });
+         const dbName = process.env.MONGODB_DATABASE_NAME || 'CumulusAiAgent'; // Default database name
+         const db = new MongoDBDatabaseAdapter(client, dbName);
 
-        return db;
-    } else {
-        const filePath =
-            process.env.SQLITE_FILE ?? path.resolve(dataDir, "db.sqlite");
-        // ":memory:";
-        const db = new SqliteDatabaseAdapter(new Database(filePath));
-        return db;
-    }
-}
+         // Test the connection
+         db.init()
+             .then(() => {
+                 elizaLogger.success(
+                     "Successfully connected to MongoDB Atlas"
+                 );
+             })
+             .catch((error) => {
+                 elizaLogger.error("Failed to connect to MongoDB Atlas:", error);
+                 throw error; // Re-throw to handle it in the calling code
+             });
+
+         return db;
+     } else if (process.env.POSTGRES_URL) {
+         elizaLogger.info("Initializing PostgreSQL connection...");
+         const db = new PostgresDatabaseAdapter({
+             connectionString: process.env.POSTGRES_URL,
+             parseInputs: true,
+         });
+
+         // Test the connection
+         db.init()
+             .then(() => {
+                 elizaLogger.success(
+                     "Successfully connected to PostgreSQL database"
+                 );
+             })
+             .catch((error) => {
+                 elizaLogger.error("Failed to connect to PostgreSQL:", error);
+             });
+
+         return db;
+     } else {
+         const filePath =
+             process.env.SQLITE_FILE ?? path.resolve(dataDir, "db.sqlite");
+         const db = new SqliteDatabaseAdapter(new Database(filePath));
+         return db;
+     }
+ }
 
 // also adds plugins from character file into the runtime
 export async function initializeClients(
