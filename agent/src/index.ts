@@ -324,7 +324,7 @@ export function getTokenForProvider(
              retryReads: true
          });
 
-         const dbName = process.env.MONGODB_DATABASE_NAME || 'CumulusAiAgent'; // Default database name
+         const dbName = process.env.MONGODB_DATABASE || 'CumulusAiAgent'; // Default database name
          const db = new MongoDBDatabaseAdapter(client, dbName);
 
          // Test the connection
@@ -618,7 +618,7 @@ async function startAgent(
             fs.mkdirSync(dataDir, { recursive: true });
         }
 
-        db = initializeDatabase(dataDir) as IDatabaseAdapter &
+        db = await initializeDatabase(dataDir) as IDatabaseAdapter &
             IDatabaseCacheAdapter;
 
         await db.init();
